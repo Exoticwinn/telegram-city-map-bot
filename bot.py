@@ -1,4 +1,5 @@
 import telebot
+from telebot import types
 from config import *
 from logic import *
 
@@ -10,17 +11,58 @@ def handle_start(message):
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
-    bot.send_message(message.chat.id, "Доступные команды:  \n/start - начать работу с ботом\n/help - показать список команд\n/show_city <city_name> - показать город на карте\n/remember_city <city_name> - сохранить город в список посещенных\n/show_my_cities - показать все сохраненные города")
+    bot.send_message(message.chat.id, "Доступные команды:  \n/start - начать работу с ботом\n/help - показать список команд\n/show_city <city_name> - показать город на карте\n/set_color - выбрать цвет маркеров\n/remember_city <city_name> - сохранить город в список посещенных\n/show_my_cities - показать все сохраненные города")
 
 
 @bot.message_handler(commands=['show_city'])
 def handle_show_city(message):
-    city_name = message.text.split()[-1]
+    city_name = message.text.partition(" ")[2].strip()
+    if not city_name:
+        bot.send_message(message.chat.id, "Укажите город: /show_city <city_name>")
+        return
+
     user_id = message.chat.id
-    manager.create_grapf(f"{user_id}.png", [city_name])
+    if not manager.get_coordinates(city_name):
+        bot.send_message(message.chat.id, f"Город {city_name} не найден. Проверьте написание на английском.")
+        return
+
+    manager.create_grapf(
+        f"{user_id}.png",
+        [city_name],
+        marker_color=manager.get_marker_color(user_id)
+    )
 
     with open(f"{user_id}.png", "rb") as map:
         bot.send_photo(user_id, map)
+
+
+@bot.message_handler(commands=['set_color'])
+def handle_set_color(message):
+    keyboard = types.InlineKeyboardMarkup()
+    buttons = [
+        types.InlineKeyboardButton(label, callback_data=f"marker_color:{color}")
+        for label, color in DB_Map.MARKER_COLORS.items()
+    ]
+    for index in range(0, len(buttons), 2):
+        keyboard.row(*buttons[index:index + 2])
+    bot.send_message(message.chat.id, "Выберите цвет маркеров на карте:", reply_markup=keyboard)
+
+
+@bot.callback_query_handler(func=lambda call: call.data and call.data.startswith("marker_color:"))
+def handle_marker_color_selection(call):
+    marker_color = call.data.partition(":")[2]
+    if marker_color not in DB_Map.MARKER_COLORS.values():
+        bot.answer_callback_query(call.id, "Неизвестный цвет.")
+        return
+
+    user_id = call.message.chat.id
+    manager.set_marker_color(user_id, marker_color)
+    color_name = next(
+        label for label, color in DB_Map.MARKER_COLORS.items()
+        if color == marker_color
+    )
+    bot.answer_callback_query(call.id, f"Выбран цвет: {color_name}")
+    bot.send_message(user_id, f"Цвет маркеров изменён на «{color_name}».")
 
 
 @bot.message_handler(commands=['remember_city'])
@@ -43,4 +85,5 @@ def handle_show_visited_cities(message):
 
 if __name__=="__main__":
     manager = DB_Map(DATABASE)
+    manager.create_user_table()
     bot.polling()
