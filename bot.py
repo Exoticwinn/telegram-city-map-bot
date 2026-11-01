@@ -11,7 +11,34 @@ def handle_start(message):
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
-    bot.send_message(message.chat.id, "Доступные команды:  \n/start - начать работу с ботом\n/help - показать список команд\n/show_city <city_name> - показать город на карте\n/set_color - выбрать цвет маркеров\n/remember_city <city_name> - сохранить город в список посещенных\n/show_my_cities - показать все сохраненные города")
+    bot.send_message(message.chat.id, "Доступные команды:  \n/start - начать работу с ботом\n/help - показать список команд\n/show_city <city_name> - показать город на карте\n/show_country_cities <country> - показать города страны\n/set_color - выбрать цвет маркеров\n/remember_city <city_name> - сохранить город в список посещенных\n/show_my_cities - показать все сохраненные города")
+
+
+@bot.message_handler(commands=['show_country_cities'])
+def handle_show_country_cities(message):
+    country = message.text.partition(" ")[2].strip()
+    if not country:
+        bot.send_message(
+            message.chat.id,
+            "Укажите страну на английском: /show_country_cities <country>"
+        )
+        return
+
+    cities = manager.select_cities_by_country(country)
+    if not cities:
+        bot.send_message(message.chat.id, f"Не нашёл города в стране «{country}».")
+        return
+
+    prefix = f"Города страны {country}:\n"
+    chunk = prefix
+    for city in cities:
+        line = f"• {city}\n"
+        if len(chunk) + len(line) > 3500:
+            bot.send_message(message.chat.id, chunk.rstrip())
+            chunk = ""
+        chunk += line
+    if chunk:
+        bot.send_message(message.chat.id, chunk.rstrip())
 
 
 @bot.message_handler(commands=['show_city'])

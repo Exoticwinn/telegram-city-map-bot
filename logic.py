@@ -91,6 +91,17 @@ class DB_Map():
             return cities
 
 
+    def select_cities_by_country(self, country):
+        conn = sqlite3.connect(self.database)
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT city FROM cities WHERE country = ? COLLATE NOCASE ORDER BY city',
+                (country.strip(),)
+            )
+            return [row[0] for row in cursor.fetchall()]
+
+
     def get_coordinates(self, city_name):
         conn = sqlite3.connect(self.database)
         with conn:
